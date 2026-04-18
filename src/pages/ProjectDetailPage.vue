@@ -412,6 +412,25 @@
                 <div class="kc-progress-track"><div class="kc-progress-fill" :style="{ width: t.progress + '%' }"></div></div>
                 <span class="kc-progress-val">{{ t.progress }}%</span>
               </div>
+              <!-- Added subtasks to In Progress column -->
+              <div v-if="subtaskStats(t)" class="kc-subtasks">
+                <div class="kc-sub-header">
+                  <span class="kc-sub-icon">☑</span>
+                  <span class="kc-sub-count">{{ subtaskStats(t)!.done }}/{{ subtaskStats(t)!.total }}</span>
+                  <div class="kc-sub-bar"><div class="kc-sub-bar-fill" :style="{ width: subtaskStats(t)!.percent + '%' }"></div></div>
+                </div>
+                <div class="kc-sub-list">
+                  <label
+                    v-for="(s, si) in t.subtasks"
+                    :key="s._id || s.id || si"
+                    class="kc-sub-item"
+                    :class="{ 'kc-sub-done': s.done }"
+                  >
+                    <input type="checkbox" :checked="s.done" @change="toggleSubtaskDone(t, s)" />
+                    <span>{{ s.title }}</span>
+                  </label>
+                </div>
+              </div>
             </div>
             <div v-if="!inProgressTasks.length" class="kanban-empty">Trống</div>
           </div>
@@ -441,6 +460,9 @@
               <div class="kc-progress">
                 <div class="kc-progress-track"><div class="kc-progress-fill done-fill" style="width: 100%"></div></div>
                 <span class="kc-progress-val">100%</span>
+              </div>
+              <div v-if="subtaskStats(t)" class="kc-subtasks-done-badge">
+                ✅ {{ subtaskStats(t)!.total }} việc phụ đã xong
               </div>
             </div>
             <div v-if="!doneTasks.length" class="kanban-empty">Trống</div>
@@ -2171,5 +2193,15 @@ onMounted(async () => {
   .summary-ai-row { grid-template-columns: 1fr; }
   .completed-hero { flex-direction: column; text-align: center; }
   .completed-hero-badge { display: none; }
+}
+
+.kc-subtasks-done-badge {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #16a34a;
+  font-weight: 600;
+  background: #f0fdf4;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 </style>

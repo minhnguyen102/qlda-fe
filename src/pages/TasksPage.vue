@@ -36,13 +36,13 @@
       <table class="modern-table">
         <thead>
           <tr>
-            <th style="width: 45%; font-size: 0.8rem;">Tên Việc</th>
+            <th style="width: 40%; font-size: 0.8rem;">Tên Việc</th>
             <th style="font-size: 0.8rem;">Dự Án</th>
             <th style="font-size: 0.8rem;">Người Làm</th>
+            <th style="font-size: 0.8rem; text-align: center;">Tiến Độ</th>
             <th style="font-size: 0.8rem; white-space: nowrap;">Hạn Định</th>
             <th style="font-size: 0.8rem;">Trạng Thái</th>
-            <th style="font-size: 0.8rem;">Tiến Độ</th>
-            <th class="text-right" style="font-size: 0.8rem;">Lệnh</th>
+            <th class="text-right" style="font-size: 0.8rem;">Thao tác</th>
           </tr>
         </thead>
         <tbody>
@@ -56,10 +56,18 @@
             <td>
               <span class="project-tag">{{ getProjectName(task.projectId) }}</span>
             </td>
-            <td>
+            <td class="assignee-cell">
               <div class="assignee-box">
                 <span class="avatar-sm">{{ task.assignee?.fullName?.charAt(0) }}</span>
                 <span>{{ task.assignee?.fullName }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="progress-wrapper">
+                <div class="progress-label">{{ task.progress }}%</div>
+                <div class="progress-track-sm">
+                  <div v-if="task.progress > 0" class="progress-fill-sm" :style="{ width: task.progress + '%' }"></div>
+                </div>
               </div>
             </td>
             <td :class="{ 'text-danger': isOverdue(task.dueDate) && task.status !== 'DONE' }">
@@ -70,18 +78,9 @@
                 {{ getStatusLabel(task.status) }}
               </span>
             </td>
-            <td>
-              <div class="progress-wrapper">
-                <div class="progress-label">{{ task.progress }}%</div>
-                <div class="progress-track-sm">
-                  <div v-if="task.progress > 0" class="progress-fill-sm" :style="{ width: task.progress + '%' }"></div>
-                </div>
-              </div>
-            </td>
             <td class="text-right">
               <div class="action-buttons">
-                <!-- Nút xem lịch sử (tất cả mọi người) -->
-                <button @click="viewProgressLogs(task)" class="btn-icon" title="Lịch sử cập nhật">🕒</button>
+                <button @click="viewTaskDetails(task)" class="btn-icon" title="Chi tiết & Lịch sử">🕒</button>
                 <button v-if="permissions.canEditTask" @click="editTask(task)" class="btn-icon">✏️</button>
                 <button v-if="permissions.canDeleteTask" @click="deleteTask(task.id)" class="btn-icon">🗑️</button>
               </div>
@@ -252,6 +251,28 @@
             </div>
           </template>
 
+          <!-- Subtasks Section -->
+          <div class="subtasks-section">
+            <label class="section-label">Danh sách việc phụ ({{ formData.subtasks.length }})</label>
+            <div class="subtask-input-row">
+              <input 
+                v-model="newSubtaskTitle" 
+                type="text" 
+                placeholder="Thêm việc phụ mới..." 
+                @keypress.enter.prevent="addSubtask"
+              />
+              <button type="button" class="btn-add-sub" @click="addSubtask">+</button>
+            </div>
+            
+            <div class="subtasks-list" v-if="formData.subtasks.length > 0">
+              <div v-for="(sub, idx) in formData.subtasks" :key="idx" class="subtask-item">
+                <input type="checkbox" v-model="sub.done" />
+                <span :class="{ 'sub-done': sub.done }">{{ sub.title }}</span>
+                <button type="button" class="btn-remove-sub" @click="removeSubtask(idx)">×</button>
+              </div>
+            </div>
+          </div>
+
           <div class="modal-actions">
             <button type="button" @click="closeModal" class="btn btn-ghost">Đóng</button>
             <button type="submit" class="btn btn-primary" :disabled="savingTask">
@@ -262,26 +283,66 @@
       </div>
     </div>
 
-    <!-- Progress Log History Modal -->
-    <div v-if="showLogModal" class="modal-overlay">
-      <div class="card modal-content" style="max-width: 600px;">
+    <!-- Task Details & History Modal -->
+    <div v-if="showDetailModal" class="modal-overlay">
+      <div class="card modal-content" style="max-width: 650px;">
         <header class="modal-header">
-          <h2>Task Progress Update History</h2>
-          <button @click="closeLogModal" class="btn-close">×</button>
+          <h2>Chi tiết công việc</h2>
+          <button @click="closeDetailModal" class="btn-close">×</button>
         </header>
-        <div class="logs-container">
-          <div v-if="!selectedTaskLogs || selectedTaskLogs.length === 0" class="empty-state">
-            <p>No update history yet.</p>
-          </div>
-          <div v-else class="log-timeline">
-            <div v-for="(log, idx) in selectedTaskLogs" :key="idx" class="log-item">
-              <div class="log-header">
-                <strong>{{ getLogUserName(log.userId) }}</strong> đã cập nhật tiến độ thành <strong style="color:var(--primary)">{{ log.progress }}%</strong>
+        <div class="modal-form" style="overflow-y: auto;">
+          <div class="detail-info-grid">
+            <div class="detail-main">
+              <h3>{{ selectedTaskDetails?.title }}</h3>
+              <p class="detail-desc">{{ selectedTaskDetails?.description || 'Chưa có mô tả' }}</p>
+            </div>
+            <div class="detail-meta">
+              <div class="meta-row">
+                <span class="m-label">Hạn:</span>
+                <span class="m-val">{{ formatDate(selectedTaskDetails?.dueDate) }}</span>
               </div>
-              <p class="log-desc">{{ log.description }}</p>
-              <span class="log-date">{{ new Date(log.date).toLocaleString('vi-VN') }}</span>
+              <div class="meta-row">
+                <span class="m-label">Trạng thái:</span>
+                <span class="badge" :class="'badge-' + getBadgeType(selectedTaskDetails?.status)">
+                  {{ getStatusLabel(selectedTaskDetails?.status) }}
+                </span>
+              </div>
+              <div class="meta-row">
+                <span class="m-label">Tiến độ:</span>
+                <span class="m-val">{{ selectedTaskDetails?.progress }}%</span>
+              </div>
             </div>
           </div>
+
+          <!-- Read-only Subtasks -->
+          <div class="subtasks-section" v-if="selectedTaskDetails?.subtasks?.length">
+            <label class="section-label">Các việc phụ ({{ selectedTaskDetails.subtasks.length }})</label>
+            <div class="subtasks-list">
+              <div v-for="sub in selectedTaskDetails.subtasks" :key="sub.id" class="subtask-item-view">
+                <span class="view-dot" :class="{ 'done': sub.done }"></span>
+                <span :class="{ 'sub-done': sub.done }">{{ sub.title }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-section">
+            <label class="section-label">Lịch sử cập nhật</label>
+            <div v-if="!selectedTaskLogs || selectedTaskLogs.length === 0" class="empty-state">
+              <p>Chưa có lịch sử cập nhật.</p>
+            </div>
+            <div v-else class="log-timeline">
+              <div v-for="(log, idx) in selectedTaskLogs" :key="idx" class="log-item">
+                <div class="log-header">
+                  <strong>{{ getLogUserName(log.userId) }}</strong> đã cập nhật thành <strong style="color:var(--primary)">{{ log.progress }}%</strong>
+                </div>
+                <p class="log-desc">{{ log.description }}</p>
+                <span class="log-date">{{ new Date(log.date).toLocaleString('vi-VN') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions" style="padding: 16px 24px; border-top: 1px solid var(--border);">
+          <button @click="closeDetailModal" class="btn btn-primary">Đóng</button>
         </div>
       </div>
     </div>
@@ -289,7 +350,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import type { Task, Project, User, ProgressLog } from '@/types';
 import { taskService, projectService, userService } from '@/services/mockApiService';
 import { getRolePermissions } from '@/utils/roleUtils';
@@ -314,9 +375,6 @@ const totalPages = ref(1);
 const totalItems = ref(0);
 const pageSize = 10;
 
-const paginationStart = computed(() => totalItems.value === 0 ? 0 : (currentPage.value - 1) * pageSize + 1);
-const paginationEnd = computed(() => Math.min(currentPage.value * pageSize, totalItems.value));
-
 const permissions = computed(() => {
   return getRolePermissions(userRole.value as any) || {}
 });
@@ -330,14 +388,30 @@ const formData = ref({
   dueDate: '',
   progress: 0,
   priority: 'MEDIUM' as ('LOW' | 'MEDIUM' | 'HIGH'),
+  subtasks: [] as any[],
 });
 
+const newSubtaskTitle = ref('');
+
+const addSubtask = () => {
+  if (!newSubtaskTitle.value.trim()) return;
+  formData.value.subtasks.push({
+    title: newSubtaskTitle.value.trim(),
+    done: false
+  });
+  newSubtaskTitle.value = '';
+};
+
+const removeSubtask = (index: number) => {
+  formData.value.subtasks.splice(index, 1);
+};
+
 const progressLogDescription = ref('');
-const showLogModal = ref(false);
+const showDetailModal = ref(false);
+const selectedTaskDetails = ref<Task | null>(null);
 const selectedTaskLogs = ref<ProgressLog[]>([]);
 
 const filteredTasks = computed(() => {
-  // Vì chúng ta dùng backend pagination, data trong tasks.value đã là data được filter
   return tasks.value;
 });
 
@@ -346,22 +420,17 @@ const availableAssignees = computed(() => {
   const project = projects.value.find(p => p.id === formData.value.projectId);
   if (!project) return [];
 
-  // Gom quản lý và tất cả thành viên trong dự án lại
   const projectUsers: User[] = [];
   if (project.manager) projectUsers.push(project.manager);
   if (project.members && project.members.length > 0) {
     project.members.forEach((m: any) => {
-      // Tránh duplicate nếu manager cũng nằm trong list member
       if (!projectUsers.find(u => u.id === m.id)) {
         projectUsers.push(m);
       }
     });
   }
 
-  // Nếu API không đủ data trong `project.members` vì nó chỉ có ID (trường hợp fallback)
-  // Thực hiện map qua mảng `members` global chứa toàn bộ users
   const assignees = projectUsers.map(u => {
-    // Nếu u chưa có fullName (do backend không populate), lấy từ danh sách members toàn cục
     if (!u.fullName) {
       return members.value.find(m => m.id === u.id) || u;
     }
@@ -372,7 +441,6 @@ const availableAssignees = computed(() => {
 });
 
 watch(() => formData.value.projectId, (newProjectId, oldProjectId) => {
-  // Chỉ reset user khi ko phải lúc popup mới vừa mở (oldProjectId đã có value rồi mới tính là 'đổi')
   if (oldProjectId && newProjectId !== oldProjectId && formData.value.assigneeId) {
     const isAssigneeStillValid = availableAssignees.value.some(u => u.id === formData.value.assigneeId);
     if (!isAssigneeStillValid) {
@@ -412,13 +480,15 @@ const isOverdue = (dueDate: string) => {
   return new Date(dueDate) < new Date();
 };
 
-const viewProgressLogs = (task: Task) => {
+const viewTaskDetails = (task: Task) => {
+  selectedTaskDetails.value = task;
   selectedTaskLogs.value = task.progressLogs ? [...task.progressLogs].reverse() : [];
-  showLogModal.value = true;
+  showDetailModal.value = true;
 };
 
-const closeLogModal = () => {
-  showLogModal.value = false;
+const closeDetailModal = () => {
+  showDetailModal.value = false;
+  selectedTaskDetails.value = null;
   selectedTaskLogs.value = [];
 };
 
@@ -430,7 +500,12 @@ const getLogUserName = (userId: string | any) => {
 
 const editTask = (task: Task) => {
   isEditing.value = true;
-  formData.value = { ...task, description: task.description || '' };
+  formData.value = { 
+    ...task, 
+    description: task.description || '',
+    dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+    subtasks: task.subtasks ? JSON.parse(JSON.stringify(task.subtasks)) : []
+  };
   progressLogDescription.value = '';
   selectedTask.value = task;
   showCreateModal.value = true;
@@ -440,7 +515,6 @@ const handleSaveTask = async () => {
   try {
     savingTask.value = true;
     
-    // Nếu là nhân viên, chỉ cập nhật tiến độ thông qua API chuyên biệt
     if (isEditing.value && selectedTask.value && userRole.value === 'MEMBER') {
       const updatedTask = await taskService.updateTaskProgress(
         selectedTask.value.id,
@@ -452,18 +526,7 @@ const handleSaveTask = async () => {
       if (index !== -1) tasks.value[index] = updatedTask;
 
       toast.success('Đã cập nhật tiến độ công việc');
-
-      // Hiển thị đánh giá AI ngay sau khi nhân viên cập nhật
-      const ai = updatedTask.aiAssessment;
-      if (ai) {
-        const msg = `🤖 ${ai.headline}: ${ai.recommendation}`;
-        const title = `AI đánh giá dự án · Tiến độ ${ai.computedProgress}% / Kỳ vọng ${ai.expectedProgress}%`;
-        if (ai.severity === 'HIGH') toast.error(msg, title);
-        else if (ai.severity === 'MEDIUM') toast.warning(msg, title);
-        else toast.success(msg, title);
-      }
     } else {
-      // Logic lưu công việc bình thường của Quản lý / Admin
       let res;
       if (isEditing.value && selectedTask.value) {
         res = await taskService.updateTask(selectedTask.value.id, formData.value as any);
@@ -532,7 +595,6 @@ const shouldShowEllipsis = (page: number) => {
          (page === totalPages.value - 1 && currentPage.value < totalPages.value - 2);
 };
 
-import { watch } from 'vue';
 watch([filterProject, filterStatus], () => {
   currentPage.value = 1;
   fetchTasks();
@@ -551,7 +613,9 @@ const closeModal = () => {
     dueDate: '',
     progress: 0,
     priority: 'MEDIUM',
+    subtasks: [],
   };
+  newSubtaskTitle.value = '';
 };
 
 onMounted(async () => {
@@ -559,7 +623,7 @@ onMounted(async () => {
   try {
     const [_, projectsList, membersList] = await Promise.all([
       fetchTasks(),
-      projectService.getProjects(1, 100), // Lấy hết dự án cho filter
+      projectService.getProjects(1, 100),
       userService.getUsers(),
     ]);
     projects.value = projectsList.data;
@@ -593,7 +657,6 @@ onMounted(async () => {
   font-size: 15px;
 }
 
-/* Filter Bar */
 .filter-bar {
   display: flex;
   gap: 24px;
@@ -627,7 +690,6 @@ onMounted(async () => {
   border-color: var(--primary);
 }
 
-/* Table */
 .table-container {
   padding: 0;
   overflow: hidden;
@@ -663,10 +725,6 @@ onMounted(async () => {
 
 .modern-table tr:hover {
   background: #F8FAFC;
-}
-
-.modern-table tr td {
-  transition: all 0.2s ease;
 }
 
 .task-title-wrapper {
@@ -781,7 +839,6 @@ onMounted(async () => {
   opacity: 0.5;
 }
 
-/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -797,7 +854,20 @@ onMounted(async () => {
 .modal-content {
   width: 100%;
   max-width: 600px;
+  max-height: 90vh;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  flex-shrink: 0;
+}
+
+.modal-form {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-header {
@@ -816,9 +886,7 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.modal-form {
-  padding: 24px;
-}
+/* .modal-form move to above with overflow-y */
 
 .form-group {
   margin-bottom: 20px;
@@ -863,24 +931,6 @@ onMounted(async () => {
   margin-top: 12px;
 }
 
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  
-  .modern-table {
-    display: block;
-    overflow-x: auto;
-  }
-}
-
-/* Pagination Modern Mini Styles (As Photo) */
 .pagination-section {
   display: flex;
   justify-content: flex-end;
@@ -939,6 +989,127 @@ onMounted(async () => {
   text-align: center;
   font-weight: 600;
 }
+
+.subtasks-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--border);
+}
+
+.section-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.subtask-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.subtask-input-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.btn-add-sub {
+  width: 34px;
+  height: 34px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.subtask-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.sub-done {
+  text-decoration: line-through;
+  color: var(--text-soft);
+}
+
+.btn-remove-sub {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-soft);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.btn-remove-sub:hover {
+  color: var(--danger);
+}
+
+.subtasks-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sub-mini-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.sub-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.sub-status.done {
+  background: var(--success);
+}
+
+.sub-title {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub-more {
+  font-size: 10px;
+  color: var(--text-soft);
+  font-style: italic;
+}
+
 .task-info-readonly {
   background: var(--bg-main);
   padding: 16px;
