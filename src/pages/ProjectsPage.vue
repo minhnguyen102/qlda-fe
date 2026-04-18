@@ -3,10 +3,10 @@
     <header class="page-header">
       <div>
         <h1>Danh Sách Dự Án</h1>
-        <p class="subtitle">Quản lý và theo dõi tiến độ các dự án HiNET</p>
+        <p class="subtitle">Quản lý và theo dõi tiến độ dự án HiNET</p>
       </div>
       <button v-if="permissions.canCreateProject" @click="showCreateModal = true" class="btn btn-primary">
-        <span class="icon">+</span> Tạo Dự Án Mới
+        <span class="icon">+</span> <span style="font-size: 0.95em; white-space: nowrap;">Tạo Dự Án Mới</span>
       </button>
     </header>
 
@@ -16,11 +16,11 @@
         <input v-model="search" type="text" placeholder="Tìm theo tên, mô tả..." />
       </div>
       <select v-model="filterStatus">
-        <option value="">Tất cả trạng thái</option>
-        <option value="PENDING">Chờ bắt đầu</option>
-        <option value="IN_PROGRESS">Đang thực hiện</option>
+        <option value="">Tất cả</option>
+        <option value="PENDING">Chờ</option>
+        <option value="IN_PROGRESS">Đang làm</option>
         <option value="COMPLETED">Hoàn thành</option>
-        <option value="DELAYED">Trễ hạn</option>
+        <option value="DELAYED">Trễ</option>
       </select>
     </div>
 
@@ -34,17 +34,23 @@
         v-for="project in filteredProjects"
         :key="project.id"
         class="card card-interactive project-card"
+        :class="{ 'project-card--completed': project.status === 'COMPLETED' }"
         @click="openProject(project)"
       >
+        <div v-if="project.status === 'COMPLETED'" class="completed-banner">
+          <span class="completed-banner-icon">✓</span>
+          <span style="font-size: 0.8rem;">Đã xong</span>
+        </div>
+
         <div class="card-header-row">
           <div class="status-dropdown">
             <span 
               class="badge status-badge" 
               :class="'badge-' + getBadgeType(project.status)"
-              @click.stop="toggleStatusMenu(project.id)"
+              @click.stop="project.status !== 'COMPLETED' && toggleStatusMenu(project.id)"
             >
               {{ getStatusLabel(project.status) }}
-              <span class="chevron-down">▾</span>
+              <span v-if="project.status !== 'COMPLETED'" class="chevron-down">▾</span>
             </span>
             <div v-if="activeStatusMenu === project.id" class="status-menu" v-click-outside="() => activeStatusMenu = null">
               <div 
@@ -60,7 +66,10 @@
           </div>
           <div class="actions">
             <button @click.stop="viewProgressLogs(project)" class="btn-icon" title="Lịch sử tiến độ">🕒</button>
-            <button @click.stop="openProgressModal(project)" class="btn-icon" title="Cập nhật tiến độ">📈</button>
+            <button
+              v-if="project.status !== 'COMPLETED'"
+              @click.stop="openProgressModal(project)" class="btn-icon" title="Cập nhật tiến độ"
+            >📈</button>
             <button v-if="permissions.canEditProject" @click.stop="editProject(project)" class="btn-icon" title="Sửa dự án">✏️</button>
           </div>
         </div>
@@ -71,46 +80,72 @@
 
           <div class="project-meta-grid">
             <div class="meta-item">
-              <span class="label">Người Quản Lý</span>
+              <span class="label" style="font-size: 0.85em;">Người Quản Lý</span>
               <span class="value">{{ project.manager?.fullName || 'N/A' }}</span>
             </div>
             <div class="meta-item">
-              <span class="label">Quy Mô</span>
+              <span class="label" style="font-size: 0.85em;">Quy Mô</span>
               <span class="value">{{ getScaleLabel(project.scale) }}</span>
             </div>
           </div>
 
-          <div class="ai-insight-box">
+          <div class="ai-insight-box" :class="{ 'ai-insight-box--completed': project.status === 'COMPLETED' }">
             <div class="insight-item">
-              <span class="insight-label">Phân loại AI</span>
-              <span class="classification-tag">{{ project.ai_classification }}</span>
+              <span class="insight-label" style="font-size: 0.8rem;">AI Phân Loại</span>
+              <span class="classification-tag" style="font-size: 0.8rem;">{{ project.ai_classification }}</span>
             </div>
             <div class="insight-item">
-              <span class="insight-label">Rủi ro trễ</span>
-              <span class="risk-badge" :class="getRiskClass(project.ai_risk_score)">
-                {{ project.ai_risk_score }}%
+              <span class="insight-label" style="font-size: 0.8rem; white-space: nowrap;">
+                {{ project.status === 'COMPLETED' ? 'Rủi ro' : 'Rủi ro' }}
+              </span>
+              <span
+                class="risk-badge"
+                :class="project.status === 'COMPLETED' ? 'risk-resolved' : getRiskClass(project.ai_risk_score)"
+                style="font-size: 0.8rem;"
+              >
+                {{ project.status === 'COMPLETED' ? '✔ Hoàn thành' : project.ai_risk_score + '%' }}
               </span>
             </div>
           </div>
 
-          <div class="progress-section">
+          <!-- Progress section cho dự án thường -->
+          <div v-if="project.status !== 'COMPLETED'" class="progress-section">
             <div class="progress-info">
-              <span>Tiến độ hoàn thành</span>
+              <span style="font-size: 0.9em;">Tiến độ hoàn thành</span>
               <span class="progress-val">{{ project.progress }}%</span>
             </div>
             <div class="progress-track">
               <div class="progress-bar-fill" :style="{ width: project.progress + '%' }"></div>
             </div>
           </div>
+
+          <!-- Progress section cho dự án đã hoàn thành -->
+          <div v-else class="progress-section progress-section--done">
+            <div class="progress-info">
+              <span style="font-size: 0.8rem;">Kết quả</span>
+              <span class="progress-val progress-val--done" style="font-size: 0.8rem;">100%</span>
+            </div>
+            <div class="progress-track progress-track--done">
+              <div class="progress-bar-fill progress-bar--done" style="width: 100%"></div>
+            </div>
+            <div class="done-checkmark">
+              <span class="done-icon">✔</span> <span style="font-size: 0.8rem;">Hoàn thành</span>
+            </div>
+          </div>
         </div>
 
-        <div class="card-footer">
+        <div class="card-footer" :class="{ 'card-footer--completed': project.status === 'COMPLETED' }">
           <div class="task-stats">
             <span class="stat-icon">📋</span>
             <strong>{{ project.tasks?.length || 0 }}</strong> Công việc
           </div>
           <div class="date-range">
-            {{ formatDate(project.startDate) }} - {{ formatDate(project.endDate) }}
+            <span v-if="project.status === 'COMPLETED'" class="completed-date">
+              ⏱ {{ formatDate(project.endDate) }}
+            </span>
+            <span v-else>
+              {{ formatDate(project.startDate) }} - {{ formatDate(project.endDate) }}
+            </span>
           </div>
         </div>
       </div>
@@ -173,8 +208,8 @@
     <div v-if="showCreateModal" class="modal-overlay">
       <div class="card modal-content">
         <header class="modal-header">
-          <h2>{{ isEditing ? 'Chỉnh sửa dự án' : 'Khởi tạo dự án mới' }}</h2>
-          <button @click="closeModal" class="btn-close">×</button>
+          <h2>{{ isEditing ? 'Chỉnh sửa dự án' : 'Tạo dự án mới' }}</h2>
+          <button @click="handleCancelClick" class="btn-close">×</button>
         </header>
 
         <form @submit.prevent="handleSaveProject" class="project-form">
@@ -213,7 +248,7 @@
                   :value="s"
                   :disabled="isEditing && STATUS_RANK[s] < STATUS_RANK[currentProjectOriginStatus]"
                 >
-                  {{ getStatusLabel(s) }} ({{ s === currentProjectOriginStatus ? 'Hiện tại' : (STATUS_RANK[s] < STATUS_RANK[currentProjectOriginStatus] ? 'Đã qua' : 'Bước tiếp') }})
+                  {{ getStatusLabel(s) }} ({{ s === currentProjectOriginStatus ? 'Hiện tại' : (STATUS_RANK[s] < STATUS_RANK[currentProjectOriginStatus] ? 'Đã qua' : 'Tiếp theo') }})
                 </option>
               </select>
             </div>
@@ -232,8 +267,8 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>Ngân sách (VNĐ)</label>
-              <input v-model.number="formData.budget" type="number" placeholder="Ví dụ: 500000000" />
+              <label>Ngân sách (USD)</label>
+              <input v-model.number="formData.budget" type="number" placeholder="Ví dụ: 50000" />
             </div>
             <div class="form-group">
               <label>Tên Khách Hàng</label>
@@ -268,7 +303,7 @@
           <div class="classification-preview" v-if="classificationMessage || savingProject">
             <div class="ai-loader" v-if="savingProject">
               <div class="spinner"></div>
-              <span>AI đang phân tích dữ liệu...</span>
+              <span>AI đang phân tích...</span>
             </div>
             <p v-else class="classification-result">
               <span class="icon">🤖</span> {{ classificationMessage }}
@@ -276,9 +311,9 @@
           </div>
 
           <div class="modal-footer-actions">
-            <button type="button" @click="closeModal" class="btn btn-ghost">Hủy bỏ</button>
+            <button type="button" @click="handleCancelClick" class="btn btn-ghost">Hủy</button>
             <button type="submit" class="btn btn-primary" :disabled="savingProject">
-              {{ isEditing ? 'Cập nhật dự án' : 'Tạo & Phân loại AI' }}
+              <span style="font-size: 0.95em; white-space: nowrap;">{{ isEditing ? 'Cập nhật' : 'Tạo mới & Phân loại AI' }}</span>
             </button>
           </div>
         </form>
@@ -298,8 +333,8 @@
             <input v-model.number="progressData.progress" type="range" min="0" max="100" class="range-input" />
           </div>
           <div class="form-group">
-            <label>Mô tả việc đã làm *</label>
-            <textarea v-model="progressData.description" placeholder="Hôm nay bạn đã làm được những gì?..." required style="min-height: 100px;"></textarea>
+            <label>Mô tả công việc *</label>
+            <textarea v-model="progressData.description" placeholder="Hôm nay bạn đã làm được gì?..." required style="min-height: 100px;"></textarea>
           </div>
           <div class="modal-footer-actions">
             <button type="button" @click="closeProgressModal" class="btn btn-ghost">Hủy</button>
@@ -318,7 +353,7 @@
         </header>
         <div class="logs-container">
           <div v-if="!selectedProjectLogs || selectedProjectLogs.length === 0" class="empty-state">
-            <p>Chưa có lịch sử cập nhật nào.</p>
+            <p>Chưa có lịch sử cập nhật.</p>
           </div>
           <div v-else class="log-timeline">
             <div v-for="(log, idx) in selectedProjectLogs" :key="idx" class="log-item">
@@ -332,11 +367,28 @@
         </div>
       </div>
     </div>
+
+    <!-- Cancel Confirmation Popup -->
+    <Teleport to="body">
+      <div v-if="showCancelConfirm" class="confirm-overlay" @click.self="showCancelConfirm = false">
+        <div class="confirm-dialog">
+          <div class="confirm-icon">⚠️</div>
+          <h3 class="confirm-title" style="white-space: nowrap; font-size: 1.1rem;">Xác nhận hủy</h3>
+          <p class="confirm-desc" style="font-size: 0.85rem;">
+            Dữ liệu sẽ <strong>bị xóa hết</strong>.
+          </p>
+          <div class="confirm-actions" style="gap: 8px;">
+            <button class="btn btn-ghost" @click="showCancelConfirm = false" style="font-size: 0.8rem; white-space: nowrap; padding: 6px 10px; flex: 1;">Tiếp tục</button>
+            <button class="btn btn-danger" @click="confirmCancel" style="font-size: 0.8rem; white-space: nowrap; padding: 6px 10px; flex: 1;">Hủy bỏ</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { Project, User, ProgressLog } from '@/types';
 import { projectService, userService } from '@/services/mockApiService';
@@ -347,6 +399,7 @@ const router = useRouter();
 const toast = useToast();
 const projects = ref<Project[]>([]);
 const showCreateModal = ref(false);
+const showCancelConfirm = ref(false);
 const isEditing = ref(false);
 const savingProject = ref(false);
 const allUsers = ref<User[]>([]);
@@ -386,9 +439,20 @@ const permissions = computed(() => {
   return getRolePermissions(userRole.value as any) || {}
 });
 
-const filteredProjects = computed(() => {
-  const s = search.value.trim().toLowerCase();
-  return projects.value;
+const filteredProjects = computed(() => projects.value);
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+watch(search, () => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    currentPage.value = 1;
+    fetchProjects();
+  }, 350);
+});
+
+watch(filterStatus, () => {
+  currentPage.value = 1;
+  fetchProjects();
 });
 
 const openProject = (p: Project) => router.push(`/projects/${p.id}`);
@@ -416,12 +480,17 @@ const removeMember = (id: string) => {
 
 const fetchProjects = async () => {
   try {
-    const response = await projectService.getProjects(currentPage.value, pageSize);
+    const response = await projectService.getProjects(
+      currentPage.value,
+      pageSize,
+      search.value.trim(),
+      filterStatus.value
+    );
     projects.value = response.data;
     totalPages.value = response.pagination.pages;
     totalItems.value = response.pagination.total;
   } catch (error: any) {
-    toast.error(error.message || 'Không tải được danh sách dự án');
+    toast.error(error.message || 'Lỗi tải dữ liệu');
   }
 };
 
@@ -457,9 +526,9 @@ const updateProjectStatus = async (project: Project, newStatus: string) => {
   try {
     await projectService.updateProject(project.id, { status: newStatus } as any);
     project.status = newStatus as any;
-    toast.success(`Đã chuyển trạng thái sang ${getStatusLabel(newStatus)}`);
+    toast.success(`Status updated to ${getStatusLabel(newStatus)}`);
   } catch (error: any) {
-    toast.error(error.message || 'Không thể cập nhật trạng thái');
+    toast.error(error.message || 'Failed to update status');
   } finally {
     activeStatusMenu.value = null;
   }
@@ -502,10 +571,10 @@ const getBadgeType = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    'PENDING': 'Chờ bắt đầu',
-    'IN_PROGRESS': 'Đang thực hiện',
+    'PENDING': 'Chờ',
+    'IN_PROGRESS': 'Đang làm',
     'COMPLETED': 'Hoàn thành',
-    'DELAYED': 'Trễ hạn'
+    'DELAYED': 'Trễ'
   };
   return labels[status?.toUpperCase()] || status;
 };
@@ -513,7 +582,7 @@ const getStatusLabel = (status: string) => {
 const getScaleLabel = (scale: string) => {
   const labels: Record<string, string> = {
     'SMALL': 'Nhỏ',
-    'MEDIUM': 'Trung bình',
+    'MEDIUM': 'Vừa',
     'LARGE': 'Lớn'
   };
   return labels[scale?.toUpperCase()] || scale;
@@ -591,6 +660,33 @@ const handleSaveProject = async () => {
   } finally {
     savingProject.value = false;
   }
+};
+
+const isFormDirty = () => {
+  const f = formData.value;
+  return !!(
+    f.name.trim() ||
+    f.description.trim() ||
+    f.startDate ||
+    f.endDate ||
+    f.budget ||
+    f.clientName.trim() ||
+    f.memberIds.length > 0
+  );
+};
+
+const handleCancelClick = () => {
+  // Khi đang edit thì luôn hỏi xác nhận
+  if (isEditing.value || isFormDirty()) {
+    showCancelConfirm.value = true;
+  } else {
+    closeModal();
+  }
+};
+
+const confirmCancel = () => {
+  showCancelConfirm.value = false;
+  closeModal();
 };
 
 const closeModal = () => {
@@ -804,7 +900,6 @@ onMounted(async () => {
 
 .meta-item .label {
   font-size: 11px;
-  text-transform: uppercase;
   color: var(--text-muted);
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -878,7 +973,131 @@ onMounted(async () => {
   height: 100%;
   background: linear-gradient(90deg, var(--primary), var(--secondary));
   border-radius: 3px;
+  transition: width 0.6s ease;
 }
+
+/* ===== Completed Project Card ===== */
+.project-card--completed {
+  border-color: #86efac;
+  background: linear-gradient(160deg, #ffffff 0%, #f0fdf4 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.project-card--completed::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.completed-banner {
+  background: linear-gradient(90deg, #16a34a, #15803d);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+}
+
+.completed-banner-icon {
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.ai-insight-box--completed {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.risk-resolved {
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.progress-section--done {
+  margin-top: auto;
+}
+
+.progress-track--done {
+  height: 8px;
+  background: #bbf7d0;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.progress-bar--done {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  border-radius: 999px;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.4);
+  animation: progressGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes progressGlow {
+  from { box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3); }
+  to   { box-shadow: 0 2px 10px rgba(34, 197, 94, 0.6); }
+}
+
+.progress-val--done {
+  color: #16a34a !important;
+  font-weight: 800 !important;
+}
+
+.done-checkmark {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.done-icon {
+  width: 18px;
+  height: 18px;
+  background: #16a34a;
+  color: white;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.card-footer--completed {
+  background: #f0fdf4;
+  border-top-color: #bbf7d0;
+}
+
+.completed-date {
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+
 
 /* Pagination Modern Mini Styles (As Photo) */
 .pagination-section {
@@ -1353,4 +1572,52 @@ onMounted(async () => {
   font-size: 11px;
   color: #94A3B8;
 }
+
+/* ===== Cancel Confirmation Popup ===== */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.confirm-dialog {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: var(--shadow-xl);
+  text-align: center;
+  animation: slideUp 0.3s var(--ease);
+}
+
+.confirm-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.confirm-title {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.confirm-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
 </style>

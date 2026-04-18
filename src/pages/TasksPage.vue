@@ -3,10 +3,10 @@
     <header class="page-header">
       <div>
         <h1>Quản Lý Công Việc</h1>
-        <p class="subtitle">Theo dõi và cập nhật tiến độ các nhiệm vụ</p>
+        <p class="subtitle">Theo dõi và cập nhật tiến độ nhiệm vụ</p>
       </div>
       <button v-if="permissions.canCreateTask" @click="showCreateModal = true" class="btn btn-primary">
-        <span class="icon">+</span> Thêm Nhiệm Vụ
+        <span class="icon">+</span> Thêm Công Việc
       </button>
     </header>
 
@@ -14,7 +14,7 @@
       <div class="filter-group">
         <label>Dự án</label>
         <select v-model="filterProject" class="form-control">
-          <option value="">Tất cả các dự án</option>
+          <option value="">Tất cả dự án</option>
           <option v-for="project in projects" :key="project.id" :value="project.id">
             {{ project.name }}
           </option>
@@ -23,10 +23,10 @@
       <div class="filter-group">
         <label>Trạng thái</label>
         <select v-model="filterStatus" class="form-control">
-          <option value="">Mọi trạng thái</option>
+          <option value="">Tất cả</option>
           <option value="TODO">Chưa thực hiện</option>
-          <option value="IN_PROGRESS">Đang thực hiện</option>
-          <option value="REVIEW">Chờ phê duyệt</option>
+          <option value="IN_PROGRESS">Đang làm</option>
+          <option value="REVIEW">Đang duyệt</option>
           <option value="DONE">Hoàn thành</option>
         </select>
       </div>
@@ -36,13 +36,13 @@
       <table class="modern-table">
         <thead>
           <tr>
-            <th style="width: 45%">Tên Công Việc</th>
-            <th>Dự Án</th>
-            <th>Thực Hiện</th>
-            <th>Hạn Định</th>
-            <th>Trạng Thái</th>
-            <th>Tiến Độ</th>
-            <th class="text-right">Hành Động</th>
+            <th style="width: 45%; font-size: 0.8rem;">Tên Việc</th>
+            <th style="font-size: 0.8rem;">Dự Án</th>
+            <th style="font-size: 0.8rem;">Người Làm</th>
+            <th style="font-size: 0.8rem; white-space: nowrap;">Hạn Định</th>
+            <th style="font-size: 0.8rem;">Trạng Thái</th>
+            <th style="font-size: 0.8rem;">Tiến Độ</th>
+            <th class="text-right" style="font-size: 0.8rem;">Lệnh</th>
           </tr>
         </thead>
         <tbody>
@@ -67,7 +67,7 @@
             </td>
             <td>
               <span class="badge" :class="'badge-' + getBadgeType(task.status)">
-                {{ task.status }}
+                {{ getStatusLabel(task.status) }}
               </span>
             </td>
             <td>
@@ -92,7 +92,7 @@
       
       <div v-if="tasks.length === 0" class="empty-state">
         <div class="empty-icon">📂</div>
-        <p>Không tìm thấy công việc nào phù hợp</p>
+        <p>No tasks found matching your criteria</p>
       </div>
     </div>
 
@@ -153,7 +153,7 @@
     <div v-if="showCreateModal" class="modal-overlay">
       <div class="card modal-content">
         <header class="modal-header">
-          <h2>{{ isEditing ? 'Cập nhật công việc' : 'Thêm công việc mới' }}</h2>
+          <h2>{{ isEditing ? 'Cập Nhật Công Việc' : 'Tạo Công Việc Mới' }}</h2>
           <button @click="closeModal" class="btn-close">×</button>
         </header>
 
@@ -172,29 +172,29 @@
               <div class="form-group">
                 <label>Trạng thái</label>
                 <select v-model="formData.status" required>
-                  <option value="TODO">Chưa bắt đầu</option>
-                  <option value="IN_PROGRESS">Đang thực hiện</option>
-                  <option value="REVIEW">Đang đánh giá</option>
-                  <option value="DONE">Đã hoàn thành</option>
+                  <option value="TODO">Chưa làm</option>
+                  <option value="IN_PROGRESS">Đang làm</option>
+                  <option value="REVIEW">Chờ duyệt</option>
+                  <option value="DONE">Hoàn thành</option>
                 </select>
               </div>
             </div>
             
             <div class="form-group">
-              <label>Mô tả việc đã làm *</label>
-              <textarea v-model="progressLogDescription" placeholder="Hôm nay bạn đã làm được những gì?..." required style="min-height: 80px;"></textarea>
+              <label>Hôm nay bạn đã làm được gì? *</label>
+              <textarea v-model="progressLogDescription" placeholder="Mô tả tiến độ của bạn..." required style="min-height: 80px;"></textarea>
             </div>
           </template>
 
           <template v-else>
             <div class="form-group">
-              <label>Tên công việc *</label>
-              <input v-model="formData.title" type="text" placeholder="Bạn cần làm gì?" required />
+              <label>Tên Công Việc *</label>
+              <input v-model="formData.title" type="text" placeholder="Công việc cần thực hiện?" required />
             </div>
 
             <div class="form-group">
-              <label>Chi tiết công việc</label>
-              <textarea v-model="formData.description" placeholder="Mô tả cụ thể nhiệm vụ..."></textarea>
+              <label>Chi Tiết Công Việc</label>
+              <textarea v-model="formData.description" placeholder="Mô tả chi tiết công việc..."></textarea>
             </div>
 
             <div class="form-row">
@@ -209,9 +209,11 @@
               </div>
               <div class="form-group">
                 <label>Người thực hiện</label>
-                <select v-model="formData.assigneeId" required>
-                  <option value="" disabled>-- Chọn nhân viên --</option>
-                  <option v-for="user in members" :key="user.id" :value="user.id">
+                <select v-model="formData.assigneeId" required :disabled="!formData.projectId">
+                  <option value="" disabled>
+                    {{ formData.projectId ? '-- Chọn thành viên --' : '-- Vui lòng chọn dự án trước --' }}
+                  </option>
+                  <option v-for="user in availableAssignees" :key="user.id" :value="user.id">
                     {{ user.fullName }}
                   </option>
                 </select>
@@ -224,7 +226,7 @@
                 <input v-model="formData.dueDate" type="date" required />
               </div>
               <div class="form-group">
-                <label>Mức độ ưu tiên</label>
+                <label>Độ ưu tiên</label>
                 <select v-model="formData.priority">
                   <option value="LOW">Thấp</option>
                   <option value="MEDIUM">Trung bình</option>
@@ -237,10 +239,10 @@
               <div class="form-group">
                 <label>Trạng thái</label>
                 <select v-model="formData.status" required>
-                  <option value="TODO">Chưa bắt đầu</option>
-                  <option value="IN_PROGRESS">Đang thực hiện</option>
-                  <option value="REVIEW">Đang đánh giá</option>
-                  <option value="DONE">Đã hoàn thành</option>
+                  <option value="TODO">Chưa làm</option>
+                  <option value="IN_PROGRESS">Đang làm</option>
+                  <option value="REVIEW">Chờ duyệt</option>
+                  <option value="DONE">Hoàn thành</option>
                 </select>
               </div>
               <div class="form-group">
@@ -253,7 +255,7 @@
           <div class="modal-actions">
             <button type="button" @click="closeModal" class="btn btn-ghost">Đóng</button>
             <button type="submit" class="btn btn-primary" :disabled="savingTask">
-              {{ isEditing ? 'Cập Nhật' : 'Tạo Nhiệm Vụ' }}
+              {{ isEditing ? 'Cập Nhật Công Việc' : 'Tạo Công Việc' }}
             </button>
           </div>
         </form>
@@ -264,17 +266,17 @@
     <div v-if="showLogModal" class="modal-overlay">
       <div class="card modal-content" style="max-width: 600px;">
         <header class="modal-header">
-          <h2>Lịch sử cập nhật tiến độ công việc</h2>
+          <h2>Task Progress Update History</h2>
           <button @click="closeLogModal" class="btn-close">×</button>
         </header>
         <div class="logs-container">
           <div v-if="!selectedTaskLogs || selectedTaskLogs.length === 0" class="empty-state">
-            <p>Chưa có lịch sử cập nhật nào.</p>
+            <p>No update history yet.</p>
           </div>
           <div v-else class="log-timeline">
             <div v-for="(log, idx) in selectedTaskLogs" :key="idx" class="log-item">
               <div class="log-header">
-                <strong>{{ getLogUserName(log.userId) }}</strong> đã cập nhật khối lượng thành <strong style="color:var(--primary)">{{ log.progress }}%</strong>
+                <strong>{{ getLogUserName(log.userId) }}</strong> đã cập nhật tiến độ thành <strong style="color:var(--primary)">{{ log.progress }}%</strong>
               </div>
               <p class="log-desc">{{ log.description }}</p>
               <span class="log-date">{{ new Date(log.date).toLocaleString('vi-VN') }}</span>
@@ -339,6 +341,46 @@ const filteredTasks = computed(() => {
   return tasks.value;
 });
 
+const availableAssignees = computed(() => {
+  if (!formData.value.projectId) return [];
+  const project = projects.value.find(p => p.id === formData.value.projectId);
+  if (!project) return [];
+
+  // Gom quản lý và tất cả thành viên trong dự án lại
+  const projectUsers: User[] = [];
+  if (project.manager) projectUsers.push(project.manager);
+  if (project.members && project.members.length > 0) {
+    project.members.forEach((m: any) => {
+      // Tránh duplicate nếu manager cũng nằm trong list member
+      if (!projectUsers.find(u => u.id === m.id)) {
+        projectUsers.push(m);
+      }
+    });
+  }
+
+  // Nếu API không đủ data trong `project.members` vì nó chỉ có ID (trường hợp fallback)
+  // Thực hiện map qua mảng `members` global chứa toàn bộ users
+  const assignees = projectUsers.map(u => {
+    // Nếu u chưa có fullName (do backend không populate), lấy từ danh sách members toàn cục
+    if (!u.fullName) {
+      return members.value.find(m => m.id === u.id) || u;
+    }
+    return u;
+  });
+
+  return assignees;
+});
+
+watch(() => formData.value.projectId, (newProjectId, oldProjectId) => {
+  // Chỉ reset user khi ko phải lúc popup mới vừa mở (oldProjectId đã có value rồi mới tính là 'đổi')
+  if (oldProjectId && newProjectId !== oldProjectId && formData.value.assigneeId) {
+    const isAssigneeStillValid = availableAssignees.value.some(u => u.id === formData.value.assigneeId);
+    if (!isAssigneeStillValid) {
+      formData.value.assigneeId = '';
+    }
+  }
+});
+
 const getProjectName = (projectId: string) => {
   return projects.value.find(p => p.id === projectId)?.name || 'Dự án khác';
 };
@@ -349,6 +391,16 @@ const getBadgeType = (status: string) => {
   if (s === 'REVIEW') return 'info';
   if (s === 'IN_PROGRESS') return 'warning';
   return 'info';
+};
+
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    TODO: 'Chưa làm',
+    IN_PROGRESS: 'Đang làm',
+    REVIEW: 'Chờ duyệt',
+    DONE: 'Hoàn thành'
+  };
+  return map[status?.toUpperCase()] || status;
 };
 
 const formatDate = (date: string) => {
@@ -395,11 +447,21 @@ const handleSaveTask = async () => {
         formData.value.progress,
         progressLogDescription.value
       );
-      
+
       const index = tasks.value.findIndex(t => t.id === updatedTask.id);
       if (index !== -1) tasks.value[index] = updatedTask;
-      
+
       toast.success('Đã cập nhật tiến độ công việc');
+
+      // Hiển thị đánh giá AI ngay sau khi nhân viên cập nhật
+      const ai = updatedTask.aiAssessment;
+      if (ai) {
+        const msg = `🤖 ${ai.headline}: ${ai.recommendation}`;
+        const title = `AI đánh giá dự án · Tiến độ ${ai.computedProgress}% / Kỳ vọng ${ai.expectedProgress}%`;
+        if (ai.severity === 'HIGH') toast.error(msg, title);
+        else if (ai.severity === 'MEDIUM') toast.warning(msg, title);
+        else toast.success(msg, title);
+      }
     } else {
       // Logic lưu công việc bình thường của Quản lý / Admin
       let res;
@@ -549,7 +611,6 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
-  text-transform: uppercase;
 }
 
 .form-control {
@@ -585,7 +646,6 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
-  text-transform: uppercase;
   background: var(--bg-main);
   border-bottom: 1px solid var(--border);
 }
@@ -667,7 +727,7 @@ onMounted(async () => {
 }
 
 .progress-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   margin-bottom: 4px;
   color: var(--text-muted);
@@ -766,7 +826,7 @@ onMounted(async () => {
 
 .form-group label {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 8px;
 }
@@ -923,7 +983,7 @@ onMounted(async () => {
 }
 
 .log-header {
-  font-size: 14px;
+  font-size: 15px;
   margin-bottom: 6px;
   color: var(--text-main);
 }
@@ -936,7 +996,5 @@ onMounted(async () => {
 }
 
 .log-date {
-  font-size: 11px;
-  color: #94A3B8;
 }
 </style>

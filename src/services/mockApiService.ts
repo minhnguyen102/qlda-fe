@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import type { User, Project, Task, AuthResponse, RiskAlert, DashboardStats } from '@/types';
 
 export interface PaginationMetadata {
   total: number;
@@ -16,6 +17,21 @@ export interface PaginationResponse<T> {
 export const authService = {
   login: async (email: string, password: string): Promise<AuthResponse> => {
     const { data } = await apiClient.post<AuthResponse>('/auth/login', { email, password });
+    return data;
+  },
+
+  register: async (
+    fullName: string,
+    email: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<AuthResponse> => {
+    const { data } = await apiClient.post<AuthResponse>('/auth/register', {
+      fullName,
+      email,
+      password,
+      confirmPassword,
+    });
     return data;
   },
 
@@ -48,10 +64,11 @@ export const authService = {
 
 // Project Service
 export const projectService = {
-  getProjects: async (page = 1, limit = 6): Promise<PaginationResponse<Project>> => {
-    const { data } = await apiClient.get<PaginationResponse<Project>>('/projects', {
-      params: { page, limit }
-    });
+  getProjects: async (page = 1, limit = 6, search = '', status = ''): Promise<PaginationResponse<Project>> => {
+    const params: Record<string, any> = { page, limit };
+    if (search) params.search = search;
+    if (status) params.status = status;
+    const { data } = await apiClient.get<PaginationResponse<Project>>('/projects', { params });
     return data;
   },
 
@@ -93,14 +110,15 @@ export const projectService = {
 
   classifyProject: async (
     project: Partial<Project>
-  ): Promise<{ classification: string; riskScore: number }> => {
-    const { data } = await apiClient.post<{ classification: string; riskScore: number }>(
+  ): Promise<{ classification: string; riskScore: number; complexity: string; confidence: number; modelVersion: string }> => {
+    const { data } = await apiClient.post<{ classification: string; riskScore: number; complexity: string; confidence: number; modelVersion: string }>(
       '/projects/classify',
       {
         scale: project.scale,
         complexity: project.complexity,
-        estimatedDurationDays: (project as any).estimatedDurationDays,
-        teamSize: (project as any).teamSize,
+        budget: (project as any).budget ?? 0,
+        estimatedDurationDays: (project as any).estimatedDurationDays ?? 0,
+        teamSize: (project as any).teamSize ?? 0,
       }
     );
     return data;
@@ -108,6 +126,11 @@ export const projectService = {
 
   predictSchedule: async (projectId: string): Promise<any> => {
     const { data } = await apiClient.get(`/projects/${projectId}/predict-schedule`);
+    return data;
+  },
+
+  getTaskRecommendations: async (projectId: string): Promise<any> => {
+    const { data } = await apiClient.get(`/projects/${projectId}/task-recommendations`);
     return data;
   },
 
@@ -159,6 +182,11 @@ export const taskService = {
     const payload: any = { ...updates };
     delete payload.assignee;
     const { data } = await apiClient.put<Task>(`/tasks/${id}`, payload);
+    return data;
+  },
+
+  toggleSubtask: async (taskId: string, subId: string, done?: boolean): Promise<Task> => {
+    const { data } = await apiClient.patch<Task>(`/tasks/${taskId}/subtasks/${subId}`, { done });
     return data;
   },
 
@@ -220,6 +248,11 @@ export const userService = {
 
   getUsersByRole: async (role: string): Promise<User[]> => {
     const { data } = await apiClient.get<User[]>('/users', { params: { role } });
+    return data;
+  },
+
+  getPerformance: async (userId: string): Promise<any> => {
+    const { data } = await apiClient.get(`/users/${userId}/performance`);
     return data;
   },
 };

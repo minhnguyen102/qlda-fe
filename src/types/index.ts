@@ -35,8 +35,27 @@ export interface Project {
   tasks: Task[];
   members: User[];
   progressLogs?: ProgressLog[];
+  aiAssessments?: AiAssessment[];
+  latestAiAssessment?: AiAssessment | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AiAssessment {
+  _id?: string;
+  date: string;
+  computedProgress: number;
+  riskScore: number;
+  expectedProgress: number;
+  predictedDelayDays: number;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  headline: string;
+  summary: string;
+  recommendation: string;
+  triggerType: string;
+  triggerTaskId?: string | null;
+  triggerUserId?: string | null;
+  modelVersion?: string;
 }
 
 export interface ProgressLog {
@@ -45,6 +64,17 @@ export interface ProgressLog {
   progress: number;
   description: string;
   date: string;
+}
+
+// Subtask Types
+export interface Subtask {
+  _id?: string;
+  id?: string;
+  title: string;
+  done: boolean;
+  assigneeId?: string | null;
+  createdAt?: string;
+  completedAt?: string | null;
 }
 
 // Task Types
@@ -60,6 +90,21 @@ export interface Task {
   progress: number; // 0 - 100
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   progressLogs?: ProgressLog[];
+  estimatedHours?: number;
+  actualHours?: number;
+  startDate?: string;
+  subtasks?: Subtask[];
+  aiAssessment?: {
+    headline: string;
+    severity: 'LOW' | 'MEDIUM' | 'HIGH';
+    summary: string;
+    recommendation: string;
+    riskScore: number;
+    expectedProgress: number;
+    computedProgress: number;
+    predictedDelayDays: number;
+    stats?: { totalTasks: number; doneTasks: number; overdueTasks: number; atRiskTasks: number };
+  };
   createdAt: string;
   updatedAt: string;
   completedAt?: string;

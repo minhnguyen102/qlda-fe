@@ -62,7 +62,8 @@
       </div>
       
       <div class="card-footer">
-        <p>&copy; 2024 HiNET Project Management Systems</p>
+        <p>Chưa có tài khoản? <router-link to="/register" class="link-register">Đăng kí ngay</router-link></p>
+        <p class="copy">&copy; 2024 HiNET Project Management Systems</p>
       </div>
     </div>
   </div>
@@ -305,8 +306,26 @@ h1 {
 }
 
 .card-footer p {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.card-footer .copy {
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.link-register {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.link-register:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
 
 @media (max-width: 480px) {
